@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 0,
     width: "88%",
-    marginBottom: 30,
+    marginBottom: 60,
     flexDirection: "column",
     justifyContent: "space-evenly",
     alignItems: "center",
