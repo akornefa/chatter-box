@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, Button, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
-import { Bubble, GiftedChat } from 'react-native-gifted-chat';
+import { Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
 const firebase = require('firebase');
 require('firebase/firestore');
@@ -17,6 +19,7 @@ export default class Chat extends React.Component {
         name: '',
         avatar: '',
       },
+      isConnected: false,
     };
 
     if (!firebase.apps.length) {
@@ -32,36 +35,77 @@ export default class Chat extends React.Component {
     this.referenceChatMessages = firebase.firestore().collection("messages");
   }
 
+  async getMessages() {
+    let messages = '';
+    try {
+      messages = await AsyncStorage.getItem('messages') || [];
+      this.setState({
+        messages: JSON.parse(messages)
+      });
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  async saveMessages() {
+    try {
+      await AsyncStorage.setItem('messages', JSON.stringify(this.state.messages));
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  async deleteMessages() {
+    try {
+      await AsyncStorage.removeItem('messages');
+      this.setState({
+        messages: []
+      })
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
 
   componentDidMount() {
 
     let name = this.props.route.params.name;
     this.props.navigation.setOptions({ title: name });
 
-    this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-      if (!user) {
-        await firebase.auth().signInAnonymously();
-      };
-      //update user state with currently active user data
-      this.setState({
-        uid: user.uid,
-        messages: [],
-        loggedInText: 'You are logged in!',
-        user: {
-          _id: user.uid,
-          name: name,
-          avatar: "https://placeimg.com/140/140/any",
-        }
-      });
+    NetInfo.fetch().then(connection => {
+      if (connection.isConnected) {
 
-      this.unsubscribe = this.referenceChatMessages
-        .orderBy("createdAt", "desc")
-        .onSnapshot(this.onCollectionUpdate);
+        this.setState({ isConnected: true });
+        console.log('online');
+
+        this.unsubscribe = this.referenceChatMessages
+          .orderBy("createdAt", "desc")
+          .onSnapshot(this.onCollectionUpdate);
+
+        this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+          if (!user) {
+            await firebase.auth().signInAnonymously();
+          };
+          //update user state with currently active user data
+          this.setState({
+            uid: user.uid,
+            messages: [],
+            loggedInText: 'You are logged in!',
+            user: {
+              _id: user.uid,
+              name: name,
+              avatar: "https://placeimg.com/140/140/any",
+            }
+          });
+        });
+        this.saveMessages();
+
+      } else {
+        this.setState({ isConnected: false });
+        this.getMessages();
+        console.log('offline');
+      }
     });
 
-    this.setState({
-      messages: [],
-    })
   }
 
   componentWillUnmount() {
@@ -100,7 +144,22 @@ export default class Chat extends React.Component {
   }
 
   onSend(messages = []) {
-    this.addMessage(messages[0]);
+    this.setState(previousState => ({
+      messages: GiftedChat.append(previousState.messages, messages),
+    }), () => {
+      this.saveMessages();
+    });
+  }
+
+  renderInputToolbar(props) {
+    if (this.state.isConnected == false) {
+    } else {
+      return (
+        <InputToolbar
+          {...props}
+        />
+      );
+    }
   }
 
   //change message bubble color
@@ -117,6 +176,8 @@ export default class Chat extends React.Component {
     )
   }
 
+
+
   render() {
 
     let { bkgColor } = this.props.route.params;
@@ -125,6 +186,7 @@ export default class Chat extends React.Component {
         <Text>{this.state.loggedInText}</Text>
         <View style={styles.giftedChat}>
           <GiftedChat
+            renderInputToolbar={this.renderInputToolbar.bind(this)}
             renderBubble={this.renderBubble.bind(this)}
             messages={this.state.messages}
             onSend={(messages) => this.onSend(messages)}
