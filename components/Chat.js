@@ -3,6 +3,8 @@ import { View, Text, Button, StyleSheet, Platform, KeyboardAvoidingView } from '
 import { Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import * as Permissions from 'expo-permissions';
+import * as ImagePicker from 'expo-image-picker';
 
 const firebase = require('firebase');
 require('firebase/firestore');
